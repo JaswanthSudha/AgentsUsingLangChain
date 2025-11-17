@@ -1,0 +1,7 @@
+langchain
+pydantic
+langchain[google-genai]
+dotenv
+langchain_community
+langchain-huggingface
+transformers
