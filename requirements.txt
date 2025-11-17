@@ -1,0 +1,11 @@
+langchain>=0.3.0
+langchain-core>=0.3.0
+wikipedia
+langchain-community
+langchain-openai
+langchain-anthropic
+python-dotenv
+pydantic>=2.0
+duckduckgo-search
+ddgs
+langchain-google-genai
