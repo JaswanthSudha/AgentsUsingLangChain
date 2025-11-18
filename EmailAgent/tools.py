@@ -2,29 +2,108 @@ from langchain.tools import tool
 from datetime import datetime
 from typing import Optional, Literal
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+@tool
+def send_email(
+    recipient_email: str,
+    subject: str,
+    body: str,
+    sender_name: Optional[str] = None,
+) -> str:
+    """
+    Send an email to the specified recipient
+
+    Args:
+        recipient_email: The email address of the recipient
+        subject: The subject of the email
+        body: The body content of the email
+        sender_name: Optional name of the sender to include in the email
+    Returns:
+        Confirmation message about email delivery status
+    """
+    try:
+        # Load Email configuration from environment variables
+        import os
+
+        smtp_server = os.getenv("SMTP_SERVER")
+        smtp_port = int(os.getenv("SMTP_PORT", 587))
+        sender_email = os.getenv("SENDER_EMAIL")
+        sender_password = os.getenv("SENDER_PASSWORD")
+        if not all([smtp_server, smtp_port, sender_email, sender_password]):
+            return "Email configuration is incomplete. Please set SMTP_SERVER, SMTP_PORT, SENDER_EMAIL, and SENDER_PASSWORD environment variables."
+        # Create the email message
+        message = MIMEMultipart()
+        message["From"] = (
+            f"{sender_name} <{sender_email}>" if sender_name else sender_email
+        )
+        message["To"] = recipient_email
+        message["Subject"] = subject
+        # add body as a plan text
+        text_part = MIMEText(body, "plain")
+        message.attach(text_part)
+        # send Email
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(message)
+        return f"Email successfully sent to {recipient_email}"
+    except smtplib.SMTPAuthenticationError:
+        return "❌ Authentication failed. Please check your email credentials."
+    except smtplib.SMTPException as e:
+        return f"❌ SMTP error occurred: {str(e)}"
+    except Exception as e:
+        return f"❌ Failed to send email: {str(e)}"
+
+
+@tool
+def validate_email_address(email_address: str) -> str:
+    """
+    Validate the format of an email address.
+
+    Args:
+        email_address: The email address to validate
+
+    Returns:
+        Validation result message
+    """
+    import re
+
+    email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    if re.match(email_regex, email_address):
+        return f"The email address '{email_address}' is valid."
+    else:
+        return f"The email address '{email_address}' is invalid."
+
 
 @tool
 def draft_email(
     recipient: str,
     subject: str,
     body: str,
-    tone: Literal["formal", "casual", "friendly", "professional"] = "professional"
+    tone: Literal["formal", "casual", "friendly", "professional"] = "professional",
 ) -> str:
     """
     Draft an email with the given details.
-    
+
     Args:
         recipient: The name or email address of the recipient
         subject: The subject line of the email
         body: The main content/body of the email
         tone: The tone of the email (formal, casual, friendly, professional)
-        
+
     Returns:
         Formatted email draft
     """
     try:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         email_draft = f"""
 ========================================
 EMAIL DRAFT
@@ -48,11 +127,11 @@ Draft Created: {timestamp}
 def save_email_draft(email_content: str, filename: Optional[str] = None) -> str:
     """
     Save email draft to a text file.
-    
+
     Args:
         email_content: The complete email content to save
         filename: Optional filename (if not provided, auto-generates with timestamp)
-        
+
     Returns:
         Confirmation message about the saved file
     """
@@ -60,16 +139,16 @@ def save_email_draft(email_content: str, filename: Optional[str] = None) -> str:
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"email_draft_{timestamp}.txt"
-        
+
         # Create drafts directory if it doesn't exist
         drafts_dir = "email_drafts"
         os.makedirs(drafts_dir, exist_ok=True)
-        
+
         filepath = os.path.join(drafts_dir, filename)
-        
+
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(email_content)
-        
+
         return f"Email draft successfully saved to {filepath}"
     except Exception as e:
         return f"Failed to save email draft: {str(e)}"
@@ -85,17 +164,17 @@ def generate_email_template(
         "invitation",
         "announcement",
         "request",
-        "confirmation"
+        "confirmation",
     ],
-    context: str
+    context: str,
 ) -> str:
     """
     Generate an email template based on the type and context provided.
-    
+
     Args:
         template_type: The type of email template to generate
         context: Specific context or details to include in the template
-        
+
     Returns:
         Email template with placeholders and structure
     """
@@ -120,7 +199,10 @@ Subject: Following Up - [Original Topic]
 Dear [Recipient Name],
 
 I wanted to follow up on [previous conversation/email/meeting].
-
+.vscode/
+venv/
+.env
+venv310/
 {context}
 
 Please let me know if you need any additional information.
@@ -213,9 +295,9 @@ Please let me know if any changes are needed.
 
 Best regards,
 [Your Name]
-"""
+""",
     }
-    
+
     template = templates.get(template_type, "")
     return template.replace("{context}", context)
 
@@ -227,11 +309,11 @@ def format_email_signature(
     company: Optional[str] = None,
     phone: Optional[str] = None,
     email: Optional[str] = None,
-    website: Optional[str] = None
+    website: Optional[str] = None,
 ) -> str:
     """
     Generate a professional email signature.
-    
+
     Args:
         name: Full name
         title: Job title
@@ -239,12 +321,12 @@ def format_email_signature(
         phone: Phone number
         email: Email address
         website: Website URL
-        
+
     Returns:
         Formatted email signature
     """
     signature_parts = [f"\n{name}"]
-    
+
     if title:
         signature_parts.append(title)
     if company:
@@ -255,7 +337,7 @@ def format_email_signature(
         signature_parts.append(f"Email: {email}")
     if website:
         signature_parts.append(f"Website: {website}")
-    
+
     signature = "\n".join(signature_parts)
     return f"""
 ----------------------------------------
@@ -268,16 +350,16 @@ def format_email_signature(
 def check_email_length(email_body: str) -> str:
     """
     Analyze email length and provide recommendations.
-    
+
     Args:
         email_body: The email body text to analyze
-        
+
     Returns:
         Analysis of email length with recommendations
     """
     word_count = len(email_body.split())
     char_count = len(email_body)
-    
+
     if word_count < 50:
         recommendation = "Email is concise. Good for quick messages."
     elif word_count < 150:
@@ -285,8 +367,10 @@ def check_email_length(email_body: str) -> str:
     elif word_count < 300:
         recommendation = "Email is somewhat long. Consider breaking into sections."
     else:
-        recommendation = "Email is very long. Consider summarizing or using attachments."
-    
+        recommendation = (
+            "Email is very long. Consider summarizing or using attachments."
+        )
+
     return f"""
 Email Length Analysis:
 - Word Count: {word_count}
@@ -301,5 +385,7 @@ tools = [
     save_email_draft,
     generate_email_template,
     format_email_signature,
-    check_email_length
+    check_email_length,
+    send_email,
+    validate_email_address,
 ]
